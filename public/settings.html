@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>设置 · WorkBuddy 本地助理</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f3f5; color: #1f2329; }
+  header {
+    background: #fff; padding: 12px 16px; border-bottom: 1px solid #e5e6eb;
+    display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .spacer { flex: 1; }
+  .hbtn { border: 1px solid #e5e6eb; background: #fff; color: #4e5969; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; text-decoration: none; }
+  .hbtn:hover { background: #f7f8fa; border-color: #165dff; color: #165dff; }
+  main { max-width: 720px; margin: 18px auto 60px; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+  .card { background: #fff; border: 1px solid #e5e6eb; border-radius: 12px; padding: 18px 20px; }
+  .card h2 { font-size: 15px; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .card .sub { font-size: 12px; color: #86909c; margin: 0 0 14px; line-height: 1.7; }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  label.lbl { display: block; font-size: 13px; color: #4e5969; margin-bottom: 5px; }
+  input[type=text], input[type=password], input[type=number], select {
+    width: 100%; border: 1px solid #e5e6eb; border-radius: 8px; padding: 9px 11px; font-size: 14px; outline: none; font-family: inherit; background: #fff;
+  }
+  input:focus, select:focus { border-color: #165dff; }
+  .row2 { display: flex; gap: 12px; }
+  .row2 > * { flex: 1; }
+  .btn { border: none; background: #165dff; color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; display: inline-block; text-decoration: none; }
+  .btn:hover { background: #0e42d2; }
+  .btn.ghost { background: #fff; color: #165dff; border: 1px solid #165dff; }
+  .btn.ghost:hover { background: #f2f7ff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 20px; }
+  .pill.ok { background: #e8ffea; color: #00a126; }
+  .pill.no { background: #fff2f2; color: #f53f3f; }
+  .pill.warn { background: #fff7e8; color: #a86a00; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 10px; cursor: pointer; }
+  .check input { width: 16px; height: 16px; }
+  .hint { font-size: 12px; color: #86909c; margin-top: 6px; line-height: 1.75; }
+  code { background: #f2f3f5; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  .where { font-size: 12px; color: #1f2329; background: #e8f3ff; border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; line-height: 1.7; }
+  #toast {
+    position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(20px);
+    background: #1f2329; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px;
+    opacity: 0; transition: all .25s; pointer-events: none; z-index: 99;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  body.dark { background: #17171a; color: #e5e6eb; }
+  body.dark header, body.dark .card { background: #232324; border-color: #333335; }
+  body.dark input, body.dark select { background: #17171a; color: #e5e6eb; border-color: #333335; }
+  body.dark .hbtn { background: #232324; border-color: #333335; color: #c9cdd4; }
+  body.dark .btn.ghost { background: #232324; }
+  body.dark code, body.dark .where { background: #1b2430; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙ 设置</h1>
+  <span class="spacer"></span>
+  <a class="hbtn" href="/">← 返回聊天</a>
+</header>
+
+<main>
+  <!-- 本地直连(默认) -->
+  <section class="card">
+    <h2>本地直连（默认通道）<span id="localPill" class="pill no">检测中…</span></h2>
+    <p class="sub">网页直接驱动你<b>本机正在运行的 WorkBuddy</b>，不需要任何账号、client_id 或云端授权。底层用 WorkBuddy 自带的 CLI 起一个本地服务（端口 <b id="localPort">—</b>）。</p>
+    <div class="where" id="whereAmI">…</div>
+    <label class="check"><input type="checkbox" id="localEnabled" /> 启用本地直连（取消勾选则退回云端中转，但那需要你另备开放平台凭据）</label>
+    <div class="field" style="margin-top:12px">
+      <label class="lbl">本机 CLI 路径（只读）</label>
+      <input type="text" id="cliPath" readonly />
+    </div>
+    <div class="actions">
+      <button class="btn" id="saveLocal">保存开关</button>
+      <button class="btn ghost" id="restartLocal">重启本地服务</button>
+    </div>
+    <div class="hint" id="localHint"></div>
+  </section>
+
+  <!-- 访问密码 -->
+  <section class="card">
+    <h2>🔑 访问密码</h2>
+    <p class="sub">打开网页时输入的密码（默认 <code>77</code>，可改成你自己的）。</p>
+    <div class="row2">
+      <div class="field"><label class="lbl">新密码</label><input type="password" id="newPw" placeholder="新密码" /></div>
+      <div class="field"><label class="lbl">确认新密码</label><input type="password" id="newPw2" placeholder="再输一次" /></div>
+    </div>
+    <div class="actions"><button class="btn" id="savePw">修改密码</button></div>
+  </section>
+
+  <!-- 模型 -->
+  <section class="card">
+    <h2>🧠 模型</h2>
+    <p class="sub">选择本地直连发消息时用的模型（取自 WorkBuddy CLI 支持的模型列表）。选「自动」则跟随桌面 App 当前所选。改完会重启本地服务让模型生效。</p>
+    <div class="field">
+      <label class="lbl">首选模型</label>
+      <select id="modelSel"><option value="auto">自动（跟随 App 默认）</option></select>
+    </div>
+    <div class="hint" id="modelCount"></div>
+  </section>
+
+  <!-- 回复与界面 -->
+  <section class="card">
+    <h2>💬 回复与界面</h2>
+    <div class="field" style="max-width:260px">
+      <label class="lbl">等待助理回复上限（秒）</label>
+      <input type="number" id="timeout" min="5" max="600" step="5" />
+    </div>
+    <label class="check"><input type="checkbox" id="uiTime" /> 显示消息时间</label>
+    <label class="check"><input type="checkbox" id="uiRole" /> 显示「我 / 助理」标签</label>
+    <label class="check"><input type="checkbox" id="uiDark" /> 深色模式</label>
+    <div class="actions"><button class="btn" id="savePrefs">保存</button></div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1800); }
+
+let S = null;
+
+async function load() {
+  const r = await fetch('/api/settings');
+  if (r.status === 401) { location.href = '/'; return; }
+  S = await r.json();
+  document.body.classList.toggle('dark', !!(S.ui && S.ui.dark));
+
+  $('whereAmI').innerHTML = '这台网页服务跑在：<b>' + (S.bridge_host || '本机') + '</b>' +
+    (S.bridge_ip ? '（局域网 ' + S.bridge_ip + '）' : '') + ' · 端口 <b>' + S.bridge_port + '</b><br>' +
+    '聊天页地址：<code>http://' + (S.bridge_ip || 'localhost') + ':' + S.bridge_port + '/</code>';
+
+  // 本地直连卡片
+  const L = S.local || {};
+  const lp = $('localPill');
+  if (L.enabled === false) { lp.textContent = '已关闭'; lp.className = 'pill warn'; }
+  else if (L.cli_found) { lp.textContent = '已就绪'; lp.className = 'pill ok'; }
+  else { lp.textContent = '未找到 CLI'; lp.className = 'pill no'; }
+  $('localEnabled').checked = L.enabled !== false;
+  $('cliPath').value = L.cli_path || '(未找到 WorkBuddy CLI)';
+  $('localPort').textContent = L.port || '-';
+  $('localHint').textContent = L.enabled === false
+    ? '本地直连已关闭，将退回云端中转（需要开放平台凭据，默认不可用）。'
+    : (L.cli_found ? '本地服务会随网页服务自动拉起，一般无需手动重启。' : '没找到本机 CLI：请确认 WorkBuddy 已安装，或在 server 端用 CODEBUDDY_CLI 指定路径。');
+
+  // 模型下拉（来自本地 CLI 支持的模型）
+  const sel = $('modelSel');
+  const models = (S.local && S.local.models) || [];
+  models.forEach((m) => {
+    if (m.id === 'auto') return;
+    const o = document.createElement('option'); o.value = m.id; o.textContent = m.name;
+    sel.appendChild(o);
+  });
+  sel.value = (S.local && S.local.model) || 'auto';
+  $('modelCount').textContent = `共 ${models.length} 个模型可选` +
+    (S.local && S.local.model && S.local.model !== 'auto' ? `；当前首选：${S.local.model}` : '；当前：自动');
+
+  $('timeout').value = Math.round(S.poll_timeout_ms / 1000);
+  $('uiTime').checked = !!S.ui.showTime;
+  $('uiRole').checked = !!S.ui.showRole;
+  $('uiDark').checked = !!S.ui.dark;
+}
+
+$('saveLocal').onclick = async () => {
+  const enabled = $('localEnabled').checked;
+  const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ local_enabled: enabled }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) { toast(j.error || '保存失败'); return; }
+  toast(enabled ? '已启用本地直连' : '已关闭本地直连');
+  await load();
+};
+
+$('restartLocal').onclick = async () => {
+  const btn = $('restartLocal'); btn.disabled = true; btn.textContent = '重启中…';
+  try {
+    const r = await fetch('/api/local/restart', { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) toast('本地服务已重启');
+    else toast('重启失败：' + (j.error || '未知错误'));
+  } catch (e) { toast('重启失败：' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '重启本地服务'; await load(); }
+};
+
+$('savePw').onclick = async () => {
+  const a = $('newPw').value, b = $('newPw2').value;
+  if (!a) { toast('请输入新密码'); return; }
+  if (a !== b) { toast('两次输入不一致'); return; }
+  await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: a }) });
+  $('newPw').value = ''; $('newPw2').value = '';
+  toast('密码已修改');
+};
+
+$('savePrefs').onclick = async () => {
+  const body = {
+    poll_timeout_ms: Math.max(5, Number($('timeout').value) || 120) * 1000,
+    ui: { dark: $('uiDark').checked, showTime: $('uiTime').checked, showRole: $('uiRole').checked },
+    model: { preferred: $('modelSel').value, send_model: true },
+  };
+  await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  document.body.classList.toggle('dark', $('uiDark').checked);
+  toast('已保存（改了模型会重启本地服务让模型生效）');
+  await load();
+};
+
+load();
+</script>
+</body>
+</html>

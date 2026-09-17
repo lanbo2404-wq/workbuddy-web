@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WorkBuddy 本地助理 · 网页聊天</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f2f3f5; color: #1f2329; height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    background: #fff; padding: 12px 16px; border-bottom: 1px solid #e5e6eb;
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #c9cdd4; flex-shrink: 0; }
+  .dot.on { background: #00b42a; }
+  .dot.off { background: #f53f3f; }
+  .status-text { font-size: 13px; color: #86909c; }
+  .spacer { flex: 1; }
+  .hbtn {
+    border: 1px solid #e5e6eb; background: #fff; color: #4e5969; padding: 6px 12px;
+    border-radius: 6px; font-size: 13px; cursor: pointer; text-decoration: none; line-height: 1.4;
+  }
+  .hbtn:hover { background: #f7f8fa; border-color: #165dff; color: #165dff; }
+  #banner {
+    display: none; padding: 10px 16px; font-size: 13px; background: #fff7e8; color: #7d4e00;
+    border-bottom: 1px solid #ffe4ba; display: none; align-items: center; gap: 10px;
+  }
+  #banner a { color: #165dff; }
+  #chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; flex-direction: column; max-width: 78%; }
+  .row.user { align-self: flex-end; align-items: flex-end; }
+  .row.assistant { align-self: flex-start; align-items: flex-start; }
+  .meta { font-size: 11px; color: #a9aeb8; margin: 0 4px 3px; }
+  .msg { padding: 10px 13px; border-radius: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; font-size: 14px; }
+  .row.user .msg { background: #165dff; color: #fff; border-bottom-right-radius: 3px; }
+  .row.assistant .msg { background: #fff; border: 1px solid #e5e6eb; border-bottom-left-radius: 3px; }
+  .msg.typing { color: #86909c; font-style: italic; }
+  .empty { text-align: center; color: #86909c; font-size: 13px; margin-top: 40px; }
+  footer { background: #fff; border-top: 1px solid #e5e6eb; padding: 10px 16px; display: flex; gap: 10px; flex-shrink: 0; }
+  #input {
+    flex: 1; border: 1px solid #e5e6eb; border-radius: 8px; padding: 10px 12px;
+    font-size: 14px; outline: none; resize: none; height: 42px; font-family: inherit;
+  }
+  #input:focus { border-color: #165dff; }
+  #input:disabled { background: #f7f8fa; }
+  #sendBtn { border: none; background: #165dff; color: #fff; padding: 0 20px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  #sendBtn:disabled { background: #a9c4ff; cursor: not-allowed; }
+  #imgBtn { border: 1px solid #e5e6eb; background: #fff; color: #4e5969; border-radius: 8px; padding: 0 12px; font-size: 18px; cursor: pointer; align-self: flex-end; height: 42px; line-height: 1; }
+  #imgBtn:hover { border-color: #165dff; color: #165dff; }
+  #sendBtn.stop { background: #f53f3f; border-color: #f53f3f; color: #fff; }
+  #sendBtn.stop:hover { background: #e02020; }
+  body.dark #sendBtn.stop { background: #d03030; border-color: #d03030; }
+  /* 思考过程面板 */
+  .think-panel { background: #f7f8fa; border: 1px solid #e5e6eb; border-radius: 8px; margin-bottom: 6px; font-size: 12px; overflow: hidden; }
+  .think-head { padding: 4px 8px; color: #86909c; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
+  .think-head .tog { color: #165dff; }
+  .think-body { padding: 2px 8px 6px; color: #6b7280; white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto; line-height: 1.5; }
+  .think-body .tool-line { color: #0fa968; }
+  body.dark .think-panel { background: #232324; border-color: #333335; }
+  body.dark .think-head { color: #8a9099; }
+  body.dark .think-body { color: #9aa0a8; }
+  body.dark .think-body .tool-line { color: #3fd39a; }
+  #imgPrev { position: absolute; bottom: 62px; left: 16px; right: 16px; display: none; }
+  #imgPrev.show { display: block; }
+  .img-thumb { position: relative; display: inline-block; max-width: 150px; border: 1px solid #e5e6eb; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+  .img-thumb img { display: block; max-width: 150px; max-height: 120px; }
+  .img-thumb .x { position: absolute; top: 3px; right: 3px; background: rgba(0,0,0,.6); color: #fff; border-radius: 50%; width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 12px; cursor: pointer; }
+  body.dark #imgBtn { background: #232324; border-color: #333335; color: #c9cdd4; }
+  body.dark .img-thumb { background: #232324; border-color: #333335; }
+
+  /* 登录遮罩 */
+  #loginMask {
+    position: fixed; inset: 0; background: rgba(31,35,41,.45); display: flex;
+    align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(2px);
+  }
+  .login-card {
+    background: #fff; width: 320px; padding: 26px 24px; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.18); text-align: center;
+  }
+  .login-card .logo { font-size: 34px; }
+  .login-card h2 { font-size: 17px; margin: 8px 0 4px; }
+  .login-card p { font-size: 12px; color: #86909c; margin: 0 0 16px; }
+  .login-card input {
+    width: 100%; border: 1px solid #e5e6eb; border-radius: 8px; padding: 11px 12px;
+    font-size: 14px; outline: none; margin-bottom: 12px; text-align: center; letter-spacing: 2px;
+  }
+  .login-card input:focus { border-color: #165dff; }
+  .login-card button {
+    width: 100%; border: none; background: #165dff; color: #fff; padding: 11px; border-radius: 8px;
+    font-size: 14px; cursor: pointer;
+  }
+  .login-card button:hover { background: #0e42d2; }
+  #loginErr { color: #f53f3f; font-size: 12px; min-height: 16px; margin-top: 8px; }
+  /* 深色模式 */
+  body.dark { background: #17171a; color: #e5e6eb; }
+  body.dark header, body.dark footer { background: #232324; border-color: #333335; }
+  body.dark .row.assistant .msg { background: #232324; border-color: #333335; }
+  body.dark #input { background: #17171a; border-color: #333335; color: #e5e6eb; }
+  body.dark .hbtn { background: #232324; border-color: #333335; color: #c9cdd4; }
+  body.dark .login-card { background: #232324; }
+  body.dark .login-card input { background: #17171a; border-color: #333335; color: #e5e6eb; }
+</style>
+</head>
+<body>
+<header>
+  <span id="dot" class="dot"></span>
+  <h1>WorkBuddy 本地助理</h1>
+  <span id="statusText" class="status-text">检测中…</span>
+  <span class="spacer"></span>
+  <a class="hbtn" href="/settings" title="设置">⚙ 设置</a>
+  <button id="logoutBtn" class="hbtn" style="display:none">退出</button>
+</header>
+<div id="banner"><span id="bannerText"></span> · <a href="/settings">去设置</a></div>
+<div id="chat"><div class="empty">在这里给本机助理发消息 👇</div></div>
+<footer>
+  <button id="imgBtn" type="button" title="附图片（也可粘贴 / 拖拽截图）">📎</button>
+  <input id="imgInput" type="file" accept="image/*" style="display:none" />
+  <textarea id="input" placeholder="给本机助理发消息…(Enter 发送,Shift+Enter 换行，可粘贴/拖拽图片)" disabled></textarea>
+  <button id="sendBtn" disabled>发送</button>
+  <div id="imgPrev" style="display:none"></div>
+</footer>
+
+<div id="loginMask">
+  <div class="login-card">
+    <div class="logo">🤖</div>
+    <h2>WorkBuddy 本地助理</h2>
+    <p>请输入访问密码</p>
+    <input id="pw" type="password" placeholder="访问密码" autocomplete="current-password" />
+    <button id="loginGo">进入</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const dot = document.getElementById('dot');
+const statusText = document.getElementById('statusText');
+const banner = document.getElementById('banner');
+const loginMask = document.getElementById('loginMask');
+const pw = document.getElementById('pw');
+const loginErr = document.getElementById('loginErr');
+const logoutBtn = document.getElementById('logoutBtn');
+
+let UI = { dark: false, showTime: true, showRole: false };
+
+function showBanner(text) {
+  if (text) document.getElementById('bannerText').textContent = text;
+  banner.style.display = 'flex';
+}
+function hideBanner() { banner.style.display = 'none'; }
+
+function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+function addMsg(role, text, opts) {
+  opts = opts || {};
+  const emptyEl = chat.querySelector('.empty'); if (emptyEl) emptyEl.remove();
+  const row = document.createElement('div');
+  row.className = 'row ' + role;
+  if (UI.showRole || UI.showTime) {
+    const m = document.createElement('div');
+    m.className = 'meta';
+    const parts = [];
+    if (UI.showRole) parts.push(role === 'user' ? '我' : '助理');
+    if (UI.showTime) parts.push(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+    m.textContent = parts.join(' · ');
+    row.appendChild(m);
+  }
+  const el = document.createElement('div');
+  el.className = 'msg' + (opts.typing ? ' typing' : '');
+  el.textContent = text;
+  row.appendChild(el);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+function showLogin(msg) {
+  loginMask.style.display = 'flex';
+  logoutBtn.style.display = 'none';
+  input.disabled = true; sendBtn.disabled = true;
+  if (msg) loginErr.textContent = msg;
+  setTimeout(() => pw.focus(), 50);
+}
+function hideLogin() {
+  loginMask.style.display = 'none';
+  logoutBtn.style.display = 'inline-block';
+  input.disabled = false; sendBtn.disabled = false;
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const j = await r.json();
+    if (j.needLogin) { showLogin(); return; }
+    hideBanner();
+    if (j.online) {
+      dot.className = 'dot on';
+      let txt = '本机助理在线';
+      if (j.mode === 'local' && j.model) txt += ' · ' + j.model;
+      else if (j.mode === 'cloud') txt += ' · 云端中转';
+      statusText.textContent = txt;
+    } else if (j.mode === 'local') {
+      dot.className = 'dot off';
+      statusText.textContent = '本机助理未启动（发消息会自动拉起）';
+      if (j.cli === false) showBanner('没找到本机 WorkBuddy 的 CLI：请确认已安装，或到设置页用 CODEBUDDY_CLI 指定路径');
+    } else {
+      dot.className = 'dot off';
+      statusText.textContent = '本机助理离线';
+    }
+  } catch (e) { statusText.textContent = '状态获取失败'; }
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/settings');
+    if (r.status === 401) { showLogin(); return false; }
+    const j = await r.json();
+    UI = Object.assign(UI, j.ui || {});
+    document.body.classList.toggle('dark', !!UI.dark);
+    return true;
+  } catch (e) { return true; }
+}
+
+async function boot() {
+  try {
+    const r = await fetch('/api/authinfo');
+    const j = await r.json();
+    if (j.loggedIn) { hideLogin(); const ok = await loadSettings(); if (ok !== false) loadStatus(); }
+    else showLogin();
+  } catch (e) { showLogin('服务端未启动?'); }
+}
+
+async function doLogin() {
+  loginErr.textContent = '';
+  loginGo.disabled = true;
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw.value }),
+    });
+    const j = await r.json();
+    if (j.ok) { pw.value = ''; hideLogin(); const ok = await loadSettings(); if (ok !== false) loadStatus(); }
+    else loginErr.textContent = j.error || '密码不对';
+  } catch (e) { loginErr.textContent = '连接失败: ' + e.message; }
+  finally { loginGo.disabled = false; }
+}
+
+const loginGo = document.getElementById('loginGo');
+loginGo.onclick = doLogin;
+pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+logoutBtn.onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  chat.innerHTML = '<div class="empty">在这里给本机助理发消息 👇</div>';
+  showLogin();
+};
+
+const imgBtn = document.getElementById('imgBtn');
+const imgInput = document.getElementById('imgInput');
+const imgPrev = document.getElementById('imgPrev');
+let pendingImg = null;
+function showImgPrev() {
+  if (!pendingImg) { imgPrev.className = ''; imgPrev.style.display = 'none'; imgPrev.innerHTML = ''; return; }
+  imgPrev.className = 'show'; imgPrev.style.display = 'block';
+  imgPrev.innerHTML = '<div class="img-thumb"><img src="' + pendingImg + '"/><span class="x">✕</span></div>';
+  imgPrev.querySelector('.x').onclick = function () { pendingImg = null; showImgPrev(); };
+}
+function setImgFile(f) {
+  if (!f || !/^image\//.test(f.type)) return;
+  const rd = new FileReader();
+  rd.onload = function () { pendingImg = rd.result; showImgPrev(); };
+  rd.readAsDataURL(f);
+}
+if (imgBtn && imgInput) {
+  imgBtn.onclick = function () { imgInput.click(); };
+  imgInput.onchange = function () { const f = imgInput.files && imgInput.files[0]; if (f) setImgFile(f); imgInput.value = ''; };
+}
+input.addEventListener('paste', function (e) {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items) { if (it.type && it.type.indexOf('image') === 0) { const f = it.getAsFile(); if (f) { e.preventDefault(); setImgFile(f); } break; } }
+});
+document.body.addEventListener('dragover', function (e) { if (e.dataTransfer && e.dataTransfer.types && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0) e.preventDefault(); });
+document.body.addEventListener('drop', function (e) { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f && /^image\//.test(f.type)) { e.preventDefault(); setImgFile(f); } });
+
+let currentAbort = null;
+let busy = false;
+
+function setBusy(b) {
+  busy = b;
+  if (b) { sendBtn.textContent = '■ 停止'; sendBtn.classList.add('stop'); }
+  else { sendBtn.textContent = '发送'; sendBtn.classList.remove('stop'); }
+  input.disabled = false; // 思考期间也允许输入，方便边等边写
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text && !pendingImg) return;
+  if (busy) return; // 上一条还在生成，先等它结束或点"停止"
+  input.value = '';
+  if (pendingImg) addMsg('user', text || '(图片)');
+  else addMsg('user', text);
+  if (pendingImg) {
+    const lastRow = chat.querySelector('.row.user:last-child');
+    if (lastRow) { const im = document.createElement('img'); im.src = pendingImg; im.style.cssText = 'max-width:160px;max-height:140px;border-radius:8px;margin-top:4px;display:block'; lastRow.querySelector('.msg').appendChild(im); }
+  }
+  setBusy(true);
+  const typing = addMsg('assistant', '', { typing: true });
+  // 思考过程面板(流式)
+  let thinkPanel = null, thinkBody = null, thinkTxt = '';
+  function ensureThink() {
+    if (thinkPanel) return;
+    thinkPanel = document.createElement('div');
+    thinkPanel.className = 'think-panel';
+    thinkPanel.innerHTML = '<div class="think-head"><span>💭 思考过程</span><span class="tog">收起</span></div><div class="think-body"></div>';
+    thinkBody = thinkPanel.querySelector('.think-body');
+    thinkPanel.querySelector('.think-head').onclick = function () {
+      const b = thinkBody.style.display === 'none';
+      thinkBody.style.display = b ? 'block' : 'none';
+      this.querySelector('.tog').textContent = b ? '收起' : '展开';
+    };
+    typing.appendChild(thinkPanel);
+  }
+  const finalSpan = document.createElement('span');
+  finalSpan.textContent = '正在唤醒本机助理，首次约 15 秒，请稍候…';
+  typing.appendChild(finalSpan);
+  let replyText = '';
+  let firstEvent = false;
+  const ac = new AbortController();
+  currentAbort = ac;
+  let timedOut = false;
+  let waitSec = 0;
+  const tick = setInterval(() => {
+    if (firstEvent) { clearInterval(tick); return; }
+    waitSec += 1;
+    finalSpan.textContent = '正在唤醒本机助理，已等待 ' + waitSec + ' 秒…（首次约 15 秒，请稍候）';
+  }, 1000);
+  const to = setTimeout(() => {
+    timedOut = true;
+    clearInterval(tick);
+    if (currentAbort) currentAbort.abort();
+    fetch('/api/chat/cancel', { method: 'POST' }).catch(() => {});
+    finalSpan.textContent = '本机助理响应超时，已自动停止 · 点「发送」重试，或 Ctrl+F5 刷新';
+    typing.classList.remove('typing');
+  }, 150000);
+  try {
+    const body = { content: text, stream: true };
+    if (pendingImg) body.image = pendingImg;
+    const r = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body), signal: ac.signal,
+    });
+    const ct = r.headers.get('content-type') || '';
+    const isNdjson = ct.indexOf('ndjson') >= 0;
+    if (!r.ok || (!isNdjson && ct.indexOf('json') >= 0)) {
+      const j = await r.json().catch(() => ({}));
+      if (j.needLogin) { typing.closest('.row').remove(); showLogin(); return; }
+      if (j.error === 'busy') { finalSpan.textContent = '⏳ ' + (j.detail || '助理正忙，请稍候再发') + '（可点「停止」后重试）'; typing.classList.remove('typing'); return; }
+      if (j.error === 'local_failed') { typing.closest('.row').remove(); showBanner('本地直连出错了：' + (j.detail || '') + (j.log ? '\n' + j.log.join('\n') : '')); statusText.textContent = '本地直连失败'; return; }
+      finalSpan.textContent = j.reply || '(无回复)';
+      typing.classList.remove('typing');
+      return;
+    }
+    // NDJSON 流式
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let hasThink = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!line) continue;
+        let ev;
+        try { ev = JSON.parse(line); } catch (_) { continue; }
+        if (ev.type === 'thinking') {
+          if (!firstEvent) { firstEvent = true; finalSpan.textContent = ''; clearInterval(tick); }
+          hasThink = true; ensureThink();
+          thinkTxt += ev.text;
+          thinkBody.textContent = thinkTxt;
+          thinkBody.scrollTop = thinkBody.scrollHeight;
+        } else if (ev.type === 'tool') {
+          if (!firstEvent) { firstEvent = true; finalSpan.textContent = ''; clearInterval(tick); }
+          hasThink = true; ensureThink();
+          const ln = document.createElement('div');
+          ln.className = 'tool-line';
+          ln.textContent = '🔧 ' + (ev.name || '工具');
+          thinkBody.appendChild(ln);
+          thinkBody.scrollTop = thinkBody.scrollHeight;
+        } else if (ev.type === 'text') {
+          if (!firstEvent) { firstEvent = true; finalSpan.textContent = ''; clearInterval(tick); }
+          replyText += ev.text;
+          finalSpan.textContent = replyText;
+          chat.scrollTop = chat.scrollHeight;
+        } else if (ev.type === 'done') {
+          finalSpan.textContent = ev.reply || replyText || '(无回复)';
+          typing.classList.remove('typing');
+          // 结束后把思考面板折叠起来,不喧宾夺主
+          if (thinkBody) { thinkBody.style.display = 'none'; const tg = thinkPanel.querySelector('.tog'); if (tg) tg.textContent = '展开'; }
+        } else if (ev.type === 'error') {
+          finalSpan.textContent = '出错: ' + (ev.message || '');
+          typing.classList.remove('typing');
+        }
+      }
+    }
+    if (!finalSpan.textContent) { finalSpan.textContent = replyText || '(无回复)'; typing.classList.remove('typing'); }
+  } catch (e) {
+    if (e.name === 'AbortError') { if (!timedOut) finalSpan.textContent = (replyText ? replyText + '\n\n' : '') + '（已停止）'; }
+    else finalSpan.textContent = '发送失败: ' + e.message;
+    typing.classList.remove('typing');
+  } finally {
+    clearTimeout(to);
+    clearInterval(tick);
+    currentAbort = null;
+    setBusy(false);
+    sendBtn.disabled = false; input.disabled = false; input.focus();
+    pendingImg = null; showImgPrev();
+  }
+}
+
+function stopCurrent() {
+  if (currentAbort) currentAbort.abort();
+  fetch('/api/chat/cancel', { method: 'POST' }).catch(() => {});
+}
+
+sendBtn.onclick = () => { if (busy) stopCurrent(); else send(); };
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) send(); } });
+
+boot();
+</script>
+</body>
+</html>

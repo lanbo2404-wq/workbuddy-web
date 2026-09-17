@@ -1,0 +1,15 @@
+{
+  "client_id": "YOUR_CLIENT_ID",
+  "client_secret": "YOUR_CLIENT_SECRET",
+  "redirect_uri": "http://localhost:8790/auth/callback",
+  "port": 8790,
+  "auth_base": "https://www.workbuddy.cn/openapi/v2",
+  "scopes": "user.localassistant.readable user.localassistant.invokable",
+  "poll_timeout_ms": 120000,
+  "poll_interval_ms": 1500,
+  "token_file": "token.json",
+  "settings_file": "settings.json",
+  "access_password": "CHANGE_ME",
+  "local_port": 8793,
+  "device_authorize_url": "https://www.workbuddy.cn/openapi/v2/device/authorize"
+}

@@ -1,0 +1,18 @@
+# 运行态 / 敏感（绝不入库）
+settings.json
+token.json
+config.json
+chat.log
+server.log
+server_run.log
+wblog.txt
+
+# 依赖 / 体积（自备 Node 或走 Release）
+node_modules/
+runtime/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

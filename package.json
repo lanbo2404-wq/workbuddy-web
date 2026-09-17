@@ -1,0 +1,10 @@
+{
+  "name": "workbuddy-chat-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Web chat UI bridging to the local WorkBuddy assistant via the bundled CLI (local direct-connect; no cloud credentials required)",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
