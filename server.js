@@ -353,7 +353,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     function saveChatImage(dataUrl) {
-      const dir = path.join('D:\\ai', 'uploads');
+      const dir = path.join(ROOT, 'uploads');
       try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
       const m = /^data:([^;,]+)/.exec(dataUrl);
       let ext = (m && m[1].split('/')[1] || 'png').split('+')[0];
