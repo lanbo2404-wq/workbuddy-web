@@ -10,5 +10,9 @@ if not exist "%NODE%" (
   exit /b 1
 )
 cd /d "%~dp0"
-"%NODE%" supervisor.js
+REM 启动外层 cmd 守卫（常驻），由它来拉起并看护 supervisor.js
+REM 这样即使网页助理把 node 全杀光，cmd 守卫也能把服务重建
+start "" /MIN "%~dp0guardian.bat"
+echo [OK] 已启动守护（guardian.bat），服务将在几秒内上线：http://127.0.0.1:8790
+echo       关闭本窗口不会停止服务；如需彻底关闭，结束 guardian.bat 与 node.exe 进程即可。
 pause
