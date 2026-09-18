@@ -5,7 +5,7 @@
   "port": 8790,
   "auth_base": "https://www.workbuddy.cn/openapi/v2",
   "scopes": "user.localassistant.readable user.localassistant.invokable",
-  "poll_timeout_ms": 120000,
+  "poll_timeout_ms": 900000,
   "poll_interval_ms": 1500,
   "token_file": "token.json",
   "settings_file": "settings.json",

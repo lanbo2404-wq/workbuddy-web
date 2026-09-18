@@ -49,7 +49,7 @@ function loadSettings() {
   try { s = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')); } catch (_) {}
   if (!s.session_secret) s.session_secret = crypto.randomBytes(24).toString('hex');
   if (!s.password_hash) s.password_hash = sha256(CONFIG.access_password || '77');
-  if (!s.poll_timeout_ms) s.poll_timeout_ms = CONFIG.poll_timeout_ms || 120000;
+  if (!s.poll_timeout_ms) s.poll_timeout_ms = CONFIG.poll_timeout_ms || 900000;
   s.ui = Object.assign({ dark: false, showTime: true, showRole: false }, s.ui || {});
   s.model = Object.assign({ preferred: '', send_model: true }, s.model || {});
   return s;
@@ -415,7 +415,7 @@ const server = http.createServer(async (req, res) => {
             const send = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch (_) {} };
             try {
               const reply = await g.chatStream(content, {
-                timeoutMs: SETTINGS.poll_timeout_ms || 300000,
+                timeoutMs: SETTINGS.poll_timeout_ms || 900000,
                 onEvent: (ev) => send(ev),
               });
               logChat('DONE(stream) ' + (Date.now() - req._t0) + 'ms');
@@ -439,7 +439,7 @@ const server = http.createServer(async (req, res) => {
         }
         chatBusy = true; busySince = Date.now();
         try {
-          const reply = await g.chat(content, { timeoutMs: SETTINGS.poll_timeout_ms || 300000 });
+          const reply = await g.chat(content, { timeoutMs: SETTINGS.poll_timeout_ms || 900000 });
           logChat('DONE ' + (Date.now() - req._t0) + 'ms');
           return sendJson(res, 200, { reply, mode: 'local', model: (SETTINGS.model && SETTINGS.model.preferred) || 'auto' });
         } catch (e) {
@@ -529,7 +529,7 @@ const server = http.createServer(async (req, res) => {
       const b = JSON.parse((await readBody(req)) || '{}');
       const oldModel = (SETTINGS.model && SETTINGS.model.preferred) || '';
       if (b.new_password) SETTINGS.password_hash = sha256(b.new_password);
-      if (typeof b.poll_timeout_ms === 'number' && b.poll_timeout_ms >= 5000) SETTINGS.poll_timeout_ms = Math.min(b.poll_timeout_ms, 600000);
+      if (typeof b.poll_timeout_ms === 'number' && b.poll_timeout_ms >= 5000) SETTINGS.poll_timeout_ms = Math.min(b.poll_timeout_ms, 1800000);
       if (b.ui && typeof b.ui === 'object') SETTINGS.ui = Object.assign(SETTINGS.ui, {
         dark: !!b.ui.dark, showTime: !!b.ui.showTime, showRole: !!b.ui.showRole,
       });
