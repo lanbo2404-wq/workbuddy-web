@@ -227,7 +227,14 @@ function sendJson(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 const CHATLOG = path.join(ROOT, 'chat.log');
-function logChat(s) { try { fs.appendFileSync(CHATLOG, new Date().toISOString() + ' ' + s + '\n'); } catch (_) {} }
+let lastLogErr = '';
+function logChat(s) {
+  const line = new Date().toISOString() + ' ' + s + '\n';
+  try { fs.appendFileSync(CHATLOG, line); lastLogErr = ''; return; }
+  catch (e) { lastLogErr = String((e && e.code) || '') + ' ' + String((e && e.message) || e); }
+  // 主日志被别的进程独占锁住(EPERM)时兜底写到 .alt,避免诊断信息彻底丢失
+  try { fs.appendFileSync(CHATLOG + '.alt', line); } catch (_) {}
+}
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -348,6 +355,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, {
           online: up, authed: true, mode: 'local', busy: chatBusy,
           cli: !!g.cli, running: g.isRunning(), model: (SETTINGS.model && SETTINGS.model.preferred) || 'auto',
+          root: ROOT, chatlog: CHATLOG, pid: process.pid, logErr: lastLogErr,
         });
       }
       const r = await apiCall('GET', '/localassistant');
