@@ -23,16 +23,35 @@ let child = null;
 let stopping = false;
 let failCount = 0;
 
+// 端口是否已有人在服务(避免多个 supervisor 抢 8790 造成 EADDRINUSE 风暴)
+function portBusy(cb) {
+  const s = net.connect(PORT, '127.0.0.1');
+  let done = false;
+  const finish = (v) => { if (done) return; done = true; try { s.destroy(); } catch (_) {} cb(v); };
+  s.setTimeout(1200);
+  s.on('connect', () => finish(true));
+  s.on('timeout', () => finish(false));
+  s.on('error', () => finish(false));
+}
+
 function start() {
   if (stopping) return;
-  log('启动 server.js ...');
-  child = spawn(NODE, [SERVER], { cwd: ROOT, windowsHide: true, env: process.env });
-  child.stdout.on('data', (d) => process.stdout.write(d));
-  child.stderr.on('data', (d) => process.stderr.write(d));
-  child.on('exit', (code, sig) => {
-    child = null;
-    log(`server.js 退出 code=${code} sig=${sig}`);
-    if (!stopping) setTimeout(start, 3000);
+  portBusy((busy) => {
+    if (busy) {
+      // 已有人在服务 → 本进程退让,不再重复 spawn(防止多 supervisor 抢端口)
+      log('端口 ' + PORT + ' 已在服务,本 supervisor 退让(不重复启动)');
+      if (!stopping) setTimeout(start, 15000);
+      return;
+    }
+    log('启动 server.js ...');
+    child = spawn(NODE, [SERVER], { cwd: ROOT, windowsHide: true, env: process.env });
+    child.stdout.on('data', (d) => process.stdout.write(d));
+    child.stderr.on('data', (d) => process.stderr.write(d));
+    child.on('exit', (code, sig) => {
+      child = null;
+      log(`server.js 退出 code=${code} sig=${sig}`);
+      if (!stopping) setTimeout(start, 3000);
+    });
   });
 }
 

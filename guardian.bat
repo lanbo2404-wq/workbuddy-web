@@ -7,6 +7,7 @@ REM If port is down: kill all node (clear zombie supervisors), then start
 REM exactly one supervisor.js. Started by start.bat. Keep it running.
 
 set "NODE=%~dp0runtime\node\node.exe"
+cd /d "%~dp0"
 if not exist "%NODE%" (
   echo [guardian] ERROR: runtime\node\node.exe not found
   pause

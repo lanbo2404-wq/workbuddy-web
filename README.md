@@ -26,6 +26,22 @@
 2. 双击 `start.bat`（或执行 `node server.js`）。
 3. 浏览器打开 `http://localhost:8790`，输入访问密码即可。
 
+## 稳定性（双层守护）
+
+服务被意外关闭 / 被杀进程也不会掉线，会自动重建：
+
+```
+guardian.bat（cmd 常驻，每 5 秒探测 8790 端口）
+   └── supervisor.js（node，server.js 退出后 3 秒重启）
+          └── server.js（网页服务，提供 8790）
+```
+
+- 网页服务崩了 → 3 秒内 supervisor 拉起；
+- 连 supervisor 也被杀了 → cmd 守卫 5 秒内检测到 8790 掉线，清场重建；
+- `guardian.bat` 是 **cmd 进程而非 node**，所以"杀 node 进程"之类操作杀不到它。
+
+> 注意：**不要让网页助理去"重启/杀掉 workbuddy-chat 服务"** —— 它要杀的那个进程就是它自己住的房子（8790 的 server.js），必然自杀（虽然几秒后会自愈）。这类操作请在桌面端 WorkBuddy 里做。
+
 ## 端口
 
 | 端口 | 用途 | 暴露范围 |

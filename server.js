@@ -37,6 +37,9 @@ function getLocal() {
 function localEnabled() { return SETTINGS.local_enabled !== false; }
 // 全局互斥:同一时刻只允许一个对话任务(CLI 单会话,并发会互相冲突)
 let chatBusy = false;
+let busySince = 0;   // 进入忙状态的时刻(看门狗用,防"锁泄漏"导致永久 429)
+// 忙锁硬上限:超过它仍未释放即判定为泄漏(SETTINGS 在后面才初始化,故用函数惰性取)
+const busyHardLimitMs = () => (SETTINGS.poll_timeout_ms || 300000) + 60000;
 
 // ---------------- 设置(访问密码 / 偏好) ----------------
 function sha256(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
@@ -394,25 +397,30 @@ const server = http.createServer(async (req, res) => {
             sendJson(res, 429, { error: 'busy', detail: '助理正在回复上一条消息，请等它结束或点「停止」后再发' });
             return;
           }
-          chatBusy = true;
-          res.writeHead(200, {
-            'Content-Type': 'application/x-ndjson; charset=utf-8',
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-          });
-          const send = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch (_) {} };
+          chatBusy = true; busySince = Date.now();
           try {
-            const reply = await g.chatStream(content, {
-              timeoutMs: SETTINGS.poll_timeout_ms || 300000,
-              onEvent: (ev) => send(ev),
+            res.writeHead(200, {
+              'Content-Type': 'application/x-ndjson; charset=utf-8',
+              'Cache-Control': 'no-cache',
+              'X-Accel-Buffering': 'no',
             });
-            logChat('DONE(stream) ' + (Date.now() - req._t0) + 'ms');
-            send({ type: 'done', reply });
+            const send = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch (_) {} };
+            try {
+              const reply = await g.chatStream(content, {
+                timeoutMs: SETTINGS.poll_timeout_ms || 300000,
+                onEvent: (ev) => send(ev),
+              });
+              logChat('DONE(stream) ' + (Date.now() - req._t0) + 'ms');
+              send({ type: 'done', reply });
+            } catch (e) {
+              logChat('ERR(stream) ' + (Date.now() - req._t0) + 'ms ' + String((e && e.message) || e));
+              send({ type: 'error', message: String((e && e.message) || e) });
+            }
           } catch (e) {
-            logChat('ERR(stream) ' + (Date.now() - req._t0) + 'ms ' + String((e && e.message) || e));
-            send({ type: 'error', message: String((e && e.message) || e) });
+            // 写响应头/流式过程中途出错也必须释放锁,否则后续请求会永久 429
+            logChat('ERR(stream-head) ' + (Date.now() - req._t0) + 'ms ' + String((e && e.message) || e));
           } finally {
-            chatBusy = false;
+            chatBusy = false; busySince = 0;
           }
           try { res.end(); } catch (_) {}
           return;
@@ -421,7 +429,7 @@ const server = http.createServer(async (req, res) => {
           logChat('BUSY ' + (Date.now() - req._t0) + 'ms');
           return sendJson(res, 429, { error: 'busy', detail: '助理正在回复上一条消息，请稍候再发' });
         }
-        chatBusy = true;
+        chatBusy = true; busySince = Date.now();
         try {
           const reply = await g.chat(content, { timeoutMs: SETTINGS.poll_timeout_ms || 300000 });
           logChat('DONE ' + (Date.now() - req._t0) + 'ms');
@@ -437,7 +445,7 @@ const server = http.createServer(async (req, res) => {
           }
           // 有云端凭据时，静默回退到原来的云端通道
         } finally {
-          chatBusy = false;
+          chatBusy = false; busySince = 0;
         }
       }
       const preferred = SETTINGS.model && SETTINGS.model.preferred;
@@ -577,3 +585,12 @@ server.listen(CONFIG.port, '0.0.0.0', () => {
   }
   console.log(`远程访问: 把 ${CONFIG.port} 经 frp 暴露出去即可`);
 });
+
+// ---- 忙锁看门狗:防止异常路径漏释放 chatBusy 导致后续请求永久 429 ----
+logChat('BOOT pid=' + process.pid + ' busy=false');
+setInterval(() => {
+  if (chatBusy && busySince && (Date.now() - busySince) > busyHardLimitMs()) {
+    logChat('WATCHDOG 强制解锁 busy=' + Math.round((Date.now() - busySince) / 1000) + 's（判定为锁泄漏）');
+    chatBusy = false; busySince = 0;
+  }
+}, 15000);
