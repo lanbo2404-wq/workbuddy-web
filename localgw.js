@@ -139,7 +139,7 @@ class LocalGateway {
 
   // 发一条消息，返回助理回复(markdown 文本)
   async chat(text, opts = {}) {
-    const timeoutMs = opts.timeoutMs || 180000;
+    const timeoutMs = opts.timeoutMs || 300000;
     await this.ensure();
     const id = 'wb-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     const body = {
@@ -211,7 +211,7 @@ class LocalGateway {
   // 把思考增量(thinking_delta)/正文增量(text_delta)/工具调用逐个回调 onEvent，
   // 结束时 resolve 完整回复。onEvent 收到 {type:'thinking'|'text'|'tool', ...}
   chatStream(text, opts = {}) {
-    const timeoutMs = opts.timeoutMs || 180000;
+    const timeoutMs = opts.timeoutMs || 300000;
     const onEvent = opts.onEvent || (() => {});
     if (!this.cli) return Promise.reject(new Error('未找到 WorkBuddy 自带的 codebuddy CLI（可用环境变量 CODEBUDDY_CLI 指定）'));
     const node = process.execPath;
@@ -232,18 +232,30 @@ class LocalGateway {
       let reply = '';
       let streamText = '';
       let settled = false;
-      const t = setTimeout(() => { try { child.kill(); } catch (_) {} reject(new Error('生成超时')); }, timeoutMs);
+      // 空闲超时（而非总时长）：每收到 CLI 输出就重新计时；
+      // 长任务（多步工具、深度思考）只要持续有产出就不会被误杀。
+      const idleMs = Math.max(timeoutMs, 300000);
+      let t = null;
+      const armIdle = () => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => {
+          try { child.kill(); } catch (_) {}
+          finish(reject, new Error('生成超时（空闲超过 ' + Math.round(idleMs / 1000) + ' 秒无任何输出）'));
+        }, idleMs);
+      };
+      armIdle();
 
       const finish = (fn, val) => {
         if (settled) return;
         settled = true;
-        clearTimeout(t);
+        if (t) clearTimeout(t);
         this._activeChild = null;
         fn(val);
       };
 
       let buf = '';
       child.stdout.on('data', (d) => {
+        armIdle();
         buf += String(d);
         let i;
         while ((i = buf.indexOf('\n')) >= 0) {
@@ -278,11 +290,13 @@ class LocalGateway {
         }
       });
       let errOut = '';
-      child.stderr.on('data', (d) => { errOut += String(d); });
+      child.stderr.on('data', (d) => { armIdle(); errOut += String(d); });
       child.on('exit', (code) => {
         if (settled) return;
         if (useResume && code !== 0 && !reply) {
           // resume 会话失效等情形：降级为全新会话重试一次
+          // 重试交给内层自己的空闲计时器，外层必须先撤掉，否则会误判超时
+          if (t) clearTimeout(t);
           this._sessionId = null;
           this.chatStream(text, opts).then(resolve, reject);
           return;

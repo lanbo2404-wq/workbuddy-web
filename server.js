@@ -403,7 +403,7 @@ const server = http.createServer(async (req, res) => {
           const send = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch (_) {} };
           try {
             const reply = await g.chatStream(content, {
-              timeoutMs: SETTINGS.poll_timeout_ms || 180000,
+              timeoutMs: SETTINGS.poll_timeout_ms || 300000,
               onEvent: (ev) => send(ev),
             });
             logChat('DONE(stream) ' + (Date.now() - req._t0) + 'ms');
@@ -423,7 +423,7 @@ const server = http.createServer(async (req, res) => {
         }
         chatBusy = true;
         try {
-          const reply = await g.chat(content, { timeoutMs: SETTINGS.poll_timeout_ms || 180000 });
+          const reply = await g.chat(content, { timeoutMs: SETTINGS.poll_timeout_ms || 300000 });
           logChat('DONE ' + (Date.now() - req._t0) + 'ms');
           return sendJson(res, 200, { reply, mode: 'local', model: (SETTINGS.model && SETTINGS.model.preferred) || 'auto' });
         } catch (e) {

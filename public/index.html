@@ -341,14 +341,21 @@ async function send() {
     waitSec += 1;
     finalSpan.textContent = '正在唤醒本机助理，已等待 ' + waitSec + ' 秒…（首次约 15 秒，请稍候）';
   }, 1000);
-  const to = setTimeout(() => {
-    timedOut = true;
-    clearInterval(tick);
-    if (currentAbort) currentAbort.abort();
-    fetch('/api/chat/cancel', { method: 'POST' }).catch(() => {});
-    finalSpan.textContent = '本机助理响应超时，已自动停止 · 点「发送」重试，或 Ctrl+F5 刷新';
-    typing.classList.remove('typing');
-  }, 150000);
+  // 空闲超时：只要还有数据在流就不掐，5 分钟完全无数据才判超时
+  const IDLE_MS = 300000;
+  let to = null;
+  const armTo = () => {
+    if (to) clearTimeout(to);
+    to = setTimeout(() => {
+      timedOut = true;
+      clearInterval(tick);
+      if (currentAbort) currentAbort.abort();
+      fetch('/api/chat/cancel', { method: 'POST' }).catch(() => {});
+      finalSpan.textContent = '助理长时间没有响应（空闲 5 分钟），已自动停止 · 点「发送」重试';
+      typing.classList.remove('typing');
+    }, IDLE_MS);
+  };
+  armTo();
   try {
     const body = { content: text, stream: true };
     if (pendingImg) body.image = pendingImg;
@@ -376,6 +383,7 @@ async function send() {
       const { done, value } = await reader.read();
       if (done) break;
       buf += dec.decode(value, { stream: true });
+      armTo();
       let i;
       while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
@@ -418,7 +426,7 @@ async function send() {
     else finalSpan.textContent = '发送失败: ' + e.message;
     typing.classList.remove('typing');
   } finally {
-    clearTimeout(to);
+    if (to) clearTimeout(to);
     clearInterval(tick);
     currentAbort = null;
     setBusy(false);

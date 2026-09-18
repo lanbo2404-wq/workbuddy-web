@@ -5,6 +5,7 @@ config.json
 chat.log
 server.log
 server_run.log
+supervisor.log
 wblog.txt
 uploads/
 
